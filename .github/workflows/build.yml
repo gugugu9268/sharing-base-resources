@@ -75,14 +75,17 @@ jobs:
       - name: Fetch UEPseudo headers from public mirror
         shell: pwsh
         run: |
-          git clone --depth 1 --filter=blob:none --sparse https://github.com/BlackBookOfficial/ue4ss-linux-palworld.git uepseudo_mirror
+          # UEPseudo (deps/first/Unreal) 是私有 submodule，官方无公开镜像；
+          # FottenSC/HorseMod 仓库把完整 RE-UE4SS（含 Windows 版 Unreal 头）提交进了 git。
+          # sparse-checkout 只拉 Unreal 目录（约 2550 个文件）。
+          git clone --depth 1 --filter=blob:none --sparse https://github.com/FottenSC/HorseMod.git uepseudo_mirror
           Push-Location uepseudo_mirror
-          git sparse-checkout set deps/first/Unreal
+          git sparse-checkout set RE-UE4SS/deps/first/Unreal
           Pop-Location
           # RE-UE4SS 的 deps/first/Unreal 是未初始化 submodule（空目录已存在），
           # Copy-Item 到已存在目录会嵌套成 Unreal/Unreal/；先删除再复制。
           Remove-Item "RE-UE4SS\deps\first\Unreal" -Recurse -Force -ErrorAction SilentlyContinue
-          Copy-Item "uepseudo_mirror\deps\first\Unreal" "RE-UE4SS\deps\first\Unreal" -Recurse
+          Copy-Item "uepseudo_mirror\RE-UE4SS\deps\first\Unreal" "RE-UE4SS\deps\first\Unreal" -Recurse
           Write-Host "UEPseudo headers fetched from public mirror"
           if (-not (Test-Path "RE-UE4SS\deps\first\Unreal\CMakeLists.txt")) {
             throw "Unreal CMakeLists.txt missing after copy (nesting bug?)"
