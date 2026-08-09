@@ -1408,7 +1408,7 @@ class ModIntegratedStorageCpp : public CppUserModBase
 public:
     ModIntegratedStorageCpp() : CppUserModBase()
     {
-        ModName = STR("IntegratedStorageCpp"); ModVersion = STR("4.0.7");
+        ModName = STR("IntegratedStorageCpp"); ModVersion = STR("4.0.7-20260809");
         ModDescription = STR("Cross-camp build/craft: use any same-guild camp's stored materials at any camp. Server cross-registers guild containers; the remote client displays the guild total via a custom ISI-free transport channel. AOB-signature located (survives game updates).");
         ModAuthors = STR("Sarfflow");
     }
