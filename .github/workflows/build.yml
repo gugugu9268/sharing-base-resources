@@ -60,13 +60,25 @@ jobs:
       - name: Clone RE-UE4SS (pinned commit, with submodules)
         shell: pwsh
         run: |
-          # submodule URLs use SSH; rewrite to HTTPS with PAT (UEPseudo is private)
-          git config --global url."https://x-access-token:${{ secrets.GH_PAT }}@github.com/".insteadOf "git@github.com:"
+          # NOTE: UEPseudo submodule is private and cannot be fetched on forks.
+          # Only the public submodule (patternsleuth) is init'ed here; the
+          # UEPseudo (deps/first/Unreal) contents are pulled from a public
+          # v3.0.1 rehost mirror in the next step.
           git clone https://github.com/UE4SS-RE/RE-UE4SS.git RE-UE4SS
           Push-Location RE-UE4SS
           git checkout $env:RE_UE4SS_COMMIT
-          git submodule update --init --recursive
+          git submodule update --init deps/first/patternsleuth
           Pop-Location
+
+      - name: Fetch UEPseudo headers from public mirror
+        shell: pwsh
+        run: |
+          git clone --depth 1 --filter=blob:none --sparse https://github.com/BlackBookOfficial/ue4ss-linux-palworld.git uepseudo_mirror
+          Push-Location uepseudo_mirror
+          git sparse-checkout set deps/first/Unreal
+          Pop-Location
+          Copy-Item "uepseudo_mirror\deps\first\Unreal" "RE-UE4SS\deps\first\Unreal" -Recurse -Force
+          Write-Host "UEPseudo headers fetched from public mirror"
 
       - name: Inject mod into RE-UE4SS tree
         shell: pwsh
