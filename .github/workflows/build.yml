@@ -116,6 +116,24 @@ jobs:
           }
           Write-Host "mod injected into $modDir"
 
+      - name: Patch Signatures.cpp (UEPseudo mirror version drift)
+        shell: pwsh
+        run: |
+          # FottenSC/HorseMod 镜像的 UEPseudo 比 RE-UE4SS c838a8ac 略旧，
+          # 缺 UnrealInitializer::VerifyFNameConstructor。该调用仅在 Lua
+          # FName_Constructor 场景生效；本构建的 UE4SS.dll 只用于生成 mod
+          # 的 import lib（不部署，游戏使用已安装的原版），注释掉无副作用。
+          $sig = "RE-UE4SS\UE4SS\src\Signatures.cpp"
+          $content = Get-Content $sig -Raw
+          $old = "Unreal::UnrealInitializer::VerifyFNameConstructor(address);"
+          if ($content.Contains($old)) {
+              $content = $content.Replace($old, "// VerifyFNameConstructor removed (mirror UEPseudo predates it; import-lib-only build)")
+              Set-Content $sig $content
+              Write-Host "patched Signatures.cpp: VerifyFNameConstructor call removed"
+          } else {
+              Write-Host "Signatures.cpp already patched or pattern not found"
+          }
+
       - name: Configure CMake
         shell: pwsh
         run: |
