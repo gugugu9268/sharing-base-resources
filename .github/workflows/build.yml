@@ -87,7 +87,7 @@ jobs:
           if (-not (Test-Path "RE-UE4SS\deps\first\Unreal\CMakeLists.txt")) {
             throw "Unreal CMakeLists.txt missing after copy (nesting bug?)"
           }
-          if (-not (Test-Path "RE-UE4SS\deps\first\Unreal\include\Unreal\CoreMinimal.hpp")) {
+          if (-not (Test-Path "RE-UE4SS\deps\first\Unreal\include\Unreal\NameTypes.hpp")) {
             throw "Unreal headers missing after copy"
           }
           Write-Host "Unreal verified: CMakeLists.txt + headers present"
