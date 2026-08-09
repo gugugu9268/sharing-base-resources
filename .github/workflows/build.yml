@@ -64,6 +64,8 @@ jobs:
           # Only the public submodule (patternsleuth) is init'ed here; the
           # UEPseudo (deps/first/Unreal) contents are pulled from a public
           # v3.0.1 rehost mirror in the next step.
+          # Submodule URLs use SSH; rewrite to anonymous HTTPS (public repos).
+          git config --global url."https://github.com/".insteadOf "git@github.com:"
           git clone https://github.com/UE4SS-RE/RE-UE4SS.git RE-UE4SS
           Push-Location RE-UE4SS
           git checkout $env:RE_UE4SS_COMMIT
