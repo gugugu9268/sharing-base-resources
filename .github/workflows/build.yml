@@ -79,8 +79,18 @@ jobs:
           Push-Location uepseudo_mirror
           git sparse-checkout set deps/first/Unreal
           Pop-Location
-          Copy-Item "uepseudo_mirror\deps\first\Unreal" "RE-UE4SS\deps\first\Unreal" -Recurse -Force
+          # RE-UE4SS 的 deps/first/Unreal 是未初始化 submodule（空目录已存在），
+          # Copy-Item 到已存在目录会嵌套成 Unreal/Unreal/；先删除再复制。
+          Remove-Item "RE-UE4SS\deps\first\Unreal" -Recurse -Force -ErrorAction SilentlyContinue
+          Copy-Item "uepseudo_mirror\deps\first\Unreal" "RE-UE4SS\deps\first\Unreal" -Recurse
           Write-Host "UEPseudo headers fetched from public mirror"
+          if (-not (Test-Path "RE-UE4SS\deps\first\Unreal\CMakeLists.txt")) {
+            throw "Unreal CMakeLists.txt missing after copy (nesting bug?)"
+          }
+          if (-not (Test-Path "RE-UE4SS\deps\first\Unreal\include\Unreal\CoreMinimal.hpp")) {
+            throw "Unreal headers missing after copy"
+          }
+          Write-Host "Unreal verified: CMakeLists.txt + headers present"
 
       - name: Inject mod into RE-UE4SS tree
         shell: pwsh
