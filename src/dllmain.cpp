@@ -663,9 +663,9 @@ static void srvDiscoverReconcileInner() {
                     }
                 }
             }
-            Output::send(STR("[ProbeChest] model class=%s origSlots=%d inst=%s\n"), mcName, origSlots, ih);
-            Output::send(STR("[ProbeChest]   chain: %s\n"), chain.c_str());
-            Output::send(STR("[ProbeChest]   cand fns: %s\n"), fnList.c_str());
+            Output::send(STR("[ProbeChest] model class={} origSlots={} inst={}\n"), mcName, (int)origSlots, ih);
+            Output::send(STR("[ProbeChest]   chain: {}\n"), chain.c_str());
+            Output::send(STR("[ProbeChest]   cand fns: {}\n"), fnList.c_str());
         }
     }
     int campsSeen = 0;   // (b) every camp, incl. empty ones, becomes a cross-registration target
@@ -792,8 +792,8 @@ static void srvDiscoverReconcileInner() {
                 try {
                     Unreal::FStaticConstructObjectParameters params{ (Unreal::UClass*)contClass, (Unreal::UObject*)outer };
                     UObject* created = Unreal::UObjectGlobals::StaticConstructObject(params);
-                    Output::send(STR("[ProbeChest] StaticConstructObject -> %p (class %s)\n"),
-                        (void*)created, created ? ((UStruct*)created->GetClassPrivate())->GetName().c_str() : L"NULL");
+                    Output::send(STR("[ProbeChest] StaticConstructObject -> {:#x} (class {})\n"),
+                        (uintptr_t)created, created ? ((UStruct*)created->GetClassPrivate())->GetName().c_str() : L"NULL");
                 } catch (...) {
                     Output::send(STR("[ProbeChest] StaticConstructObject threw\n"));
                 }
