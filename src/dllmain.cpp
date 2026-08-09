@@ -623,6 +623,50 @@ static void srvDiscoverReconcileInner() {
         wchar_t ih[33]; hexOf(keyId, ih); freshInst[ih] = camp;
         wchar_t ch[33]; hexOf((uint8_t*)camp + OFF_CAMP_ID, ch); freshCampId[ch] = camp;
         ++chests;
+        //! [ProbeChest] 共享池探测: 每个普通箱子 model 的类链/候选函数/容器槽位数
+        if (g_verbose && chests <= 8) {
+            UStruct* mc = (UStruct*)model->GetClassPrivate();
+            const wchar_t* mcName = mc ? mc->GetName().c_str() : L"?";
+            const wchar_t* candFns[] = {
+                L"GetItemContainerAccess", L"GetItemChestContainerAccess",
+                L"GetItemContainerModule", L"GetItemContainer",
+                L"GetContainer", L"GetItemContainer_ItemContainerAccessInterface",
+            };
+            std::wstring fnList;
+            for (auto fn : candFns) {
+                if (model->GetFunctionByNameInChain(fn)) { fnList += fn; fnList += L" "; }
+            }
+            std::wstring chain;
+            for (UStruct* cc = mc; cc && chain.size() < 200; cc = cc->GetSuperStruct()) {
+                chain += cc->GetName(); chain += L" <- ";
+            }
+            // 原版容器槽位数: 从 ItemContainerMap_InServer 反查 (与 B4 同款 TMap walk, 先放这里探测一次)
+            int32_t origSlots = -1;
+            UObject* contMgr0 = UObjectGlobals::FindFirstOf(STR("BP_PalItemContainerManager_C"));
+            if (!contMgr0) contMgr0 = UObjectGlobals::FindFirstOf(STR("PalItemContainerManager"));
+            if (contMgr0) {
+                uint8_t* cm = (uint8_t*)contMgr0 + OFF_CONT_MGR_MAP;
+                uint8_t* cElems  = *(uint8_t**)(cm + 0x00);
+                int32_t  cMaxIdx = *(int32_t*)(cm + 0x08);
+                uint32_t* cWords = *(uint32_t**)(cm + 0x20); if (!cWords) cWords = (uint32_t*)(cm + 0x10);
+                if (cElems && cMaxIdx > 0 && cMaxIdx < 1000000 && cWords) {
+                    for (int32_t ci = 0; ci < cMaxIdx; ++ci) {
+                        if (((cWords[ci >> 5] >> (ci & 31)) & 1u) == 0) continue;
+                        UObject* cont = *(UObject**)(cElems + (size_t)ci * 0x20 + 0x10);
+                        if (!cont) continue;
+                        uint8_t* cp = (uint8_t*)cont;
+                        if (guidZero(cp + OFF_CONT_OWNER)) continue;
+                        if (std::memcmp(cp + OFF_CONT_OWNER, keyId, 16) == 0) {
+                            origSlots = ((RawTArray*)(cp + OFF_CONT_SLOTS))->num;
+                            break;
+                        }
+                    }
+                }
+            }
+            Output::send(STR("[ProbeChest] model class=%s origSlots=%d inst=%s\n"), mcName, origSlots, ih);
+            Output::send(STR("[ProbeChest]   chain: %s\n"), chain.c_str());
+            Output::send(STR("[ProbeChest]   cand fns: %s\n"), fnList.c_str());
+        }
     }
     int campsSeen = 0;   // (b) every camp, incl. empty ones, becomes a cross-registration target
     //! B4 — enumerate ALL camps via PalBaseCampManager native API instead of FindAllOf("PalBaseCampModel").
@@ -724,6 +768,42 @@ static void srvDiscoverReconcileInner() {
     g_instToCont = std::move(freshCont);
     g_campIdToCamp = std::move(freshCampId);
     if (g_verbose && g_recLog < 200) { ++g_recLog; Output::send(STR("[ISGATE] SRV discover: chests={} camps={} guilds={} inst={} campIds={}\n"), chests, campsSeen, (int)g_guilds.size(), (int)g_instToCamp.size(), (int)g_campIdToCamp.size()); }
+    //! [ProbeChest] StaticConstructObject 创建独立 UPalItemContainer 测试 (一次性, 验证共享池容器可创建)
+    static bool s_scoTested = false;
+    if (!s_scoTested) {
+        s_scoTested = true;
+        UObject* outer = UObjectGlobals::FindFirstOf(STR("PalItemContainerManager"));
+        UStruct* contClass = nullptr;
+        if (outer) {
+            UStruct* mc = (UStruct*)outer->GetClassPrivate();
+            // 找一个 PalItemContainer 的 CDO/类: 从 manager 的 TMap 里已有的容器拿 Class
+            uint8_t* cm = (uint8_t*)outer + OFF_CONT_MGR_MAP;
+            uint8_t* cElems  = *(uint8_t**)(cm + 0x00);
+            int32_t  cMaxIdx = *(int32_t*)(cm + 0x08);
+            uint32_t* cWords = *(uint32_t**)(cm + 0x20); if (!cWords) cWords = (uint32_t*)(cm + 0x10);
+            if (cElems && cMaxIdx > 0 && cMaxIdx < 1000000 && cWords) {
+                for (int32_t ci = 0; ci < cMaxIdx && !contClass; ++ci) {
+                    if (((cWords[ci >> 5] >> (ci & 31)) & 1u) == 0) continue;
+                    UObject* cont = *(UObject**)(cElems + (size_t)ci * 0x20 + 0x10);
+                    if (cont) contClass = (UStruct*)cont->GetClassPrivate();
+                }
+            }
+            if (contClass) {
+                try {
+                    Unreal::FStaticConstructObjectParameters params{ (Unreal::UClass*)contClass, (Unreal::UObject*)outer };
+                    UObject* created = Unreal::UObjectGlobals::StaticConstructObject(params);
+                    Output::send(STR("[ProbeChest] StaticConstructObject -> %p (class %s)\n"),
+                        (void*)created, created ? ((UStruct*)created->GetClassPrivate())->GetName().c_str() : L"NULL");
+                } catch (...) {
+                    Output::send(STR("[ProbeChest] StaticConstructObject threw\n"));
+                }
+            } else {
+                Output::send(STR("[ProbeChest] no existing container class found\n"));
+            }
+        } else {
+            Output::send(STR("[ProbeChest] PalItemContainerManager not found for SCO test\n"));
+        }
+    }
 }
 //! (a) SEH wrapper: the reconcile raw-walks the map-object TMap + every camp's ModuleArray + live container
 //! slots. A pointer freed mid-walk (object destroyed on the game thread) AVs, and WITHOUT a guard that fault left
@@ -1408,7 +1488,7 @@ class ModIntegratedStorageCpp : public CppUserModBase
 public:
     ModIntegratedStorageCpp() : CppUserModBase()
     {
-        ModName = STR("IntegratedStorageCpp"); ModVersion = STR("4.0.7-20260809");
+        ModName = STR("IntegratedStorageCpp"); ModVersion = STR("4.1-probe-20260809");
         ModDescription = STR("Cross-camp build/craft: use any same-guild camp's stored materials at any camp. Server cross-registers guild containers; the remote client displays the guild total via a custom ISI-free transport channel. AOB-signature located (survives game updates).");
         ModAuthors = STR("Sarfflow");
     }
